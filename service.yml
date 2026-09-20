@@ -1,0 +1,211 @@
+name: vllm
+type: service
+title: vLLM
+scalable: true
+labels:
+- vllm
+- inference
+- openai-compatible
+
+options:
+- version: '0.29'
+  tag: v0.29.0
+  default: true
+
+# Free a GPU before starting its replacement; a singleton has update downtime.
+deployment:
+  strategy: rolling
+  maxSurge: 0
+  maxUnavailable: 1
+  minReady: 10s
+  progressDeadline: 30m
+  shutdownGracePeriod: 2m
+
+endpoints:
+- name: api
+  ports:
+  - name: http
+    number: 8000
+    protocol: http
+    main: true
+    # Application Access needs a routable HTTP endpoint. The stack requires
+    # private-network access, which suppresses public routing from creation.
+    private: false
+
+tokens:
+- name: api_key
+  generate:
+    regex: '[a-zA-Z0-9]{48}'
+
+env:
+- name: VLLM_API_KEY
+  value: '{{api_key}}'
+  secret: true
+- name: HF_HOME
+  value: /cache/huggingface
+- name: VLLM_CACHE_ROOT
+  value: /cache/vllm
+- name: VLLM_NO_USAGE_STATS
+  value: '1'
+
+# LLM_* variables are consumed by the explicit Kubernetes args below.
+# They are not native vLLM environment variables.
+settings:
+- name: model
+  title: Hugging Face model
+  required: true
+  default: Qwen/Qwen3-0.6B
+  var: LLM_MODEL_ID
+- name: revision
+  title: Model revision
+  description: Commit, tag or branch for the selected model. Change this when changing models.
+  required: true
+  default: c1899de289a04d12100db370d81485cdf75e47ca
+  var: LLM_MODEL_REVISION
+- name: served_model
+  title: API model name
+  default: model
+  required: true
+  var: LLM_SERVED_MODEL
+- name: max_model_len
+  title: Maximum context length
+  description: Total input and output tokens per request; increasing this requires more VRAM.
+  default: '4096'
+  required: true
+  var: LLM_MAX_MODEL_LEN
+- name: tensor_parallel_size
+  title: GPUs used by each replica
+  description: Also set the container GPU count to this value. GPUs must be on one node.
+  default: '1'
+  required: true
+  var: LLM_TENSOR_PARALLEL_SIZE
+- name: gpu_memory_utilization
+  title: Fraction of GPU memory used by vLLM
+  default: '0.9'
+  required: true
+  var: LLM_GPU_MEMORY_UTILIZATION
+- name: hf_token
+  title: Hugging Face token
+  description: Optional read token for private or gated models after accepting their license.
+  secret: true
+  var: HF_TOKEN
+
+helm:
+  name: wodby
+  source: oci://registry-1.docker.io/wodby/stateless
+  chart: oci://registry-1.docker.io/wodby/stateless
+  version: 0.2.0
+  valueMappings:
+    replicas: replicaCount
+    serviceAccountName: serviceAccount.name
+    serviceAccountCreate: serviceAccount.create
+  values:
+  - name: containerName
+    value: vllm
+  - name: serviceAccount.automount
+    value: false
+  - name: nodeSelector
+    value:
+      kubernetes.io/arch: amd64
+      kubernetes.io/os: linux
+  - name: tolerations
+    value:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  - name: podSecurityContext
+    value:
+      fsGroup: 0
+  - name: securityContext
+    value:
+      runAsNonRoot: true
+      runAsUser: 2000
+      runAsGroup: 0
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+  - name: containerPorts
+    value:
+    - name: http
+      containerPort: 8000
+      protocol: TCP
+  - name: args
+    value:
+    - '$(LLM_MODEL_ID)'
+    - --revision
+    - '$(LLM_MODEL_REVISION)'
+    - --served-model-name
+    - '$(LLM_SERVED_MODEL)'
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8000'
+    - --max-model-len
+    - '$(LLM_MAX_MODEL_LEN)'
+    - --tensor-parallel-size
+    - '$(LLM_TENSOR_PARALLEL_SIZE)'
+    - --gpu-memory-utilization
+    - '$(LLM_GPU_MEMORY_UTILIZATION)'
+    - --generation-config
+    - vllm
+  - name: resources
+    value:
+      requests:
+        cpu: '2'
+        memory: 4Gi
+      limits:
+        memory: 8Gi
+  - name: startupProbe
+    value:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 174
+  - name: readinessProbe
+    value:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  - name: livenessProbe
+    value:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 5
+  - name: extraVolumes
+    value:
+    - name: model-cache
+      emptyDir: {sizeLimit: 20Gi}
+    - name: shm
+      emptyDir: {medium: Memory, sizeLimit: 1Gi}
+  - name: extraVolumeMounts
+    value:
+    - name: model-cache
+      mountPath: /cache
+    - name: shm
+      mountPath: /dev/shm
+
+workloads:
+- name: main
+  primary: true
+  kind: deployment
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+  helm:
+    labels: podLabels
+    annotations: podAnnotations
+    volumes: extraVolumes
+    sidecars: extraContainers
+  containers:
+  - name: vllm
+    image: vllm/vllm-openai
+    resources:
+      gpu:
+        resourceName: nvidia.com/gpu
+        count: 1
+    helm:
+      resources: resources
+      env: envVars
+      mounts: extraVolumeMounts
