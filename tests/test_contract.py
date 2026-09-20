@@ -40,7 +40,11 @@ class ContractTest(unittest.TestCase):
         values.update(nameOverride="renamed-model", fullnameOverride="inference")
         values["image"] = {"registry": "docker.io", "repository": "vllm/vllm-openai", "tag": self.manifest["options"][0]["tag"], "pullSecrets": ["image-pull"]}
         values["envVars"] = [{"name": s["var"], "value": s["default"]} for s in self.manifest["settings"] if "default" in s]
-        values["envVars"] += [{"name": "VLLM_API_KEY", "valueFrom": {"secretKeyRef": {"name": "inference-secret", "key": "api_key"}}}]
+        for entry in self.manifest["env"]:
+            if entry.get("secret"):
+                values["envVars"].append({"name": entry["name"], "valueFrom": {"secretKeyRef": {"name": "inference-secret", "key": "api_key"}}})
+            else:
+                values["envVars"].append({"name": entry["name"], "value": entry["value"]})
         values["resources"]["requests"]["nvidia.com/gpu"] = count
         values["resources"]["limits"]["nvidia.com/gpu"] = count
         policy = self.manifest["deployment"]
@@ -81,6 +85,10 @@ class ContractTest(unittest.TestCase):
         self.assertFalse(self.manifest["endpoints"][0]["ports"][0]["private"], "Application Access selects routable HTTP endpoints; the stack must require its private-network policy")
         container = self.render(self.values())[0]["spec"]["template"]["spec"]["containers"][0]
         variables = {item["name"] for item in container["env"]}
+        environment = {item["name"]: item for item in container["env"]}
+        self.assertEqual(environment["HF_HOME"]["value"], "/cache/huggingface")
+        self.assertEqual(environment["VLLM_CACHE_ROOT"]["value"], "/cache/vllm")
+        self.assertIn("secretKeyRef", environment["VLLM_API_KEY"]["valueFrom"])
         references = set(re.findall(r"\$\(([^)]+)\)", " ".join(container["args"])))
         self.assertLessEqual(references, variables)
         self.assertNotIn("--trust-remote-code", container["args"])
