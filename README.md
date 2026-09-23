@@ -4,8 +4,8 @@ Run a Hugging Face model with the official vLLM image and an OpenAI-compatible
 API. This service reuses Wodby's generic stateless chart; it does not build a
 custom image or require KServe.
 
-Status: initial implementation, not released. GPU runtime validation is still
-required before production use.
+Status: initial 0.1.0 preview release. GPU runtime validation is still required
+before production use.
 
 ## Requirements
 
