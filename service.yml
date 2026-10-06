@@ -1,6 +1,7 @@
 name: vllm
 type: service
 title: vLLM
+guidance: GUIDANCE.md
 scalable: true
 labels:
 - vllm
