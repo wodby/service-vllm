@@ -99,7 +99,7 @@ helm:
   name: wodby
   source: oci://registry-1.docker.io/wodby/stateless
   chart: oci://registry-1.docker.io/wodby/stateless
-  version: 0.2.1
+  version: 0.3.0
   valueMappings:
     replicas: replicaCount
     serviceAccountName: serviceAccount.name
@@ -108,6 +108,10 @@ helm:
   - name: containerName
     value: vllm
   - name: serviceAccount.automount
+    value: false
+  # A Kubernetes Service named vllm, the default app service name, would set VLLM_PORT to tcp://<ip>:8000 through
+  # service links; vLLM reads VLLM_PORT as its own setting and refuses to start.
+  - name: enableServiceLinks
     value: false
   - name: nodeSelector
     value:
