@@ -70,6 +70,8 @@ class ContractTest(unittest.TestCase):
                 self.assertEqual(deployment["spec"]["selector"]["matchLabels"]["app.kubernetes.io/name"], "renamed-model")
                 pod = deployment["spec"]["template"]["spec"]
                 self.assertEqual(pod["serviceAccountName"], "inference-account")
+                # A Service named vllm would otherwise inject VLLM_PORT=tcp://..., which vLLM refuses at startup.
+                self.assertIs(pod["enableServiceLinks"], False)
                 self.assertEqual(pod["imagePullSecrets"], [{"name": "image-pull"}])
                 self.assertEqual(len(pod["containers"]), 1)
                 container = pod["containers"][0]
