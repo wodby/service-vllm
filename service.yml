@@ -22,6 +22,21 @@ deployment:
   progressDeadline: 30m
   shutdownGracePeriod: 2m
 
+# Keeps downloaded models across pod replacements. Without it the model cache at /cache is a per-pod emptyDir, and a
+# replaced pod downloads the model again. Optional: add it from the app service's volumes, or give it a size in the
+# stack. Its claim attaches to one node, so it suits a single replica; with replicas on several nodes, keep the emptyDir.
+volumes:
+- name: model-cache
+  title: Model cache
+  size: 50
+  optional: true
+  helm:
+    values:
+    - name: persistence.enabled
+      value: true
+    - name: persistence.existingClaim
+      value: '{{volumes.model-cache.claim}}'
+
 endpoints:
 - name: api
   ports:
@@ -99,7 +114,7 @@ helm:
   name: wodby
   source: oci://registry-1.docker.io/wodby/stateless
   chart: oci://registry-1.docker.io/wodby/stateless
-  version: 0.3.0
+  version: 0.4.0
   valueMappings:
     replicas: replicaCount
     serviceAccountName: serviceAccount.name
@@ -182,16 +197,17 @@ helm:
       periodSeconds: 30
       timeoutSeconds: 10
       failureThreshold: 5
+  # The model cache: the model-cache volume's claim when the app service has one, a per-pod emptyDir otherwise.
+  - name: persistence.mountPath
+    value: /cache
+  - name: persistence.emptyDir
+    value: {sizeLimit: 20Gi}
   - name: extraVolumes
     value:
-    - name: model-cache
-      emptyDir: {sizeLimit: 20Gi}
     - name: shm
       emptyDir: {medium: Memory, sizeLimit: 1Gi}
   - name: extraVolumeMounts
     value:
-    - name: model-cache
-      mountPath: /cache
     - name: shm
       mountPath: /dev/shm
 

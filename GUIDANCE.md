@@ -32,7 +32,7 @@ The model and its revision are changed together. The GPU count of the container 
 
 ## Data
 
-There is no persistent volume. Model files are downloaded into a per-pod cache at `/cache` (`HF_HOME`, `VLLM_CACHE_ROOT`), limited to 20 GiB. It survives a container restart and is lost when the pod is replaced; every replica downloads its own copy.
+Model files are downloaded into a cache at `/cache` (`HF_HOME`, `VLLM_CACHE_ROOT`). By default it is per-pod and limited to 20 GiB: it survives a container restart, is lost when the pod is replaced, and every replica downloads its own copy. The optional `model-cache` volume makes `/cache` persistent, so the model is not downloaded again after a pod is replaced; its claim attaches to one node, so it suits a single replica.
 
 ## Check the result
 

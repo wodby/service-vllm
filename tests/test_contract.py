@@ -83,6 +83,25 @@ class ContractTest(unittest.TestCase):
                 self.assertEqual(container["securityContext"]["runAsUser"], 2000)
                 self.assertEqual({v["name"] for v in pod["volumes"]}, {m["name"] for m in container["volumeMounts"]})
 
+    def test_model_cache(self):
+        def cache_and_shm(values):
+            pod = self.render(values)[0]["spec"]["template"]["spec"]
+            volumes = {v["name"]: v for v in pod["volumes"]}
+            mounts = {m["mountPath"]: m["name"] for m in pod["containers"][0]["volumeMounts"]}
+            self.assertEqual(mounts["/dev/shm"], "shm")
+            self.assertEqual(volumes["shm"]["emptyDir"]["medium"], "Memory")
+            return volumes[mounts["/cache"]]
+
+        # Without the optional volume, a bounded per-pod emptyDir holds the model cache.
+        self.assertEqual(cache_and_shm(self.values()), {"name": "persistence", "emptyDir": {"sizeLimit": "20Gi"}})
+        # With it, Wodby's claim for the volume holds the cache instead, next to the shared memory.
+        volume = next(v for v in self.manifest["volumes"] if v["name"] == "model-cache")
+        self.assertTrue(volume["optional"])
+        values = self.values()
+        for entry in volume["helm"]["values"]:
+            put(values, entry["name"], entry["value"].replace("{{volumes.model-cache.claim}}", "inference-model-cache") if isinstance(entry["value"], str) else entry["value"])
+        self.assertEqual(cache_and_shm(values)["persistentVolumeClaim"], {"claimName": "inference-model-cache"})
+
     def test_settings_and_secrets(self):
         self.assertFalse(self.manifest["endpoints"][0]["ports"][0]["private"], "Application Access selects routable HTTP endpoints; the stack must require its private-network policy")
         container = self.render(self.values())[0]["spec"]["template"]["spec"]["containers"][0]
