@@ -67,10 +67,15 @@ not a substitute for queue/token-aware scaling.
 
 ## Cache and security
 
-Model and compilation files use a bounded 20 GiB per-pod ephemeral cache.
-The cache survives container restarts within the same pod, but is lost when
-the pod is replaced. Replicas download their own copies. Size local disk and
-cache limits for the model; durable/shared model caching is not included yet.
+By default, model and compilation files use a bounded 20 GiB per-pod ephemeral
+cache. The cache survives container restarts within the same pod, but is lost
+when the pod is replaced, and replicas download their own copies. Size local
+disk and cache limits for the model.
+
+The optional **Model cache** volume (50 GiB by default) keeps the cache at
+`/cache` across pod replacements, so a restart does not download the model
+again. Add it from the app service's volumes, or give it a size in the stack.
+Its claim attaches to one node, so use it with a single replica.
 `/dev/shm` uses a bounded memory-backed volume and counts toward pod memory.
 
 Wodby generates the secret `api_key` token and supplies it as `VLLM_API_KEY`.
