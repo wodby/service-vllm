@@ -1,4 +1,5 @@
 name: vllm
+icon: vllm
 type: service
 title: vLLM
 guidance: GUIDANCE.md
