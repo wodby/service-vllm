@@ -12,6 +12,7 @@ labels:
 options:
 - version: '0.29'
   tag: v0.29.0
+  digest: sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
   default: true
 
 # Free a GPU before starting its replacement; a singleton has update downtime.
@@ -75,8 +76,7 @@ settings:
   var: LLM_MODEL_ID
 - name: revision
   title: Model revision
-  description: Commit, tag or branch for the selected model. Change this when 
-    changing models.
+  description: Commit, tag or branch for the selected model. Change this when changing models.
   required: true
   default: c1899de289a04d12100db370d81485cdf75e47ca
   var: LLM_MODEL_REVISION
@@ -87,15 +87,13 @@ settings:
   var: LLM_SERVED_MODEL
 - name: max_model_len
   title: Maximum context length
-  description: Total input and output tokens per request; increasing this 
-    requires more VRAM.
+  description: Total input and output tokens per request; increasing this requires more VRAM.
   default: '4096'
   required: true
   var: LLM_MAX_MODEL_LEN
 - name: tensor_parallel_size
   title: GPUs used by each replica
-  description: Also set the container GPU count to this value. GPUs must be on 
-    one node.
+  description: Also set the container GPU count to this value. GPUs must be on one node.
   default: '1'
   required: true
   var: LLM_TENSOR_PARALLEL_SIZE
@@ -106,8 +104,7 @@ settings:
   var: LLM_GPU_MEMORY_UTILIZATION
 - name: hf_token
   title: Hugging Face token
-  description: Optional read token for private or gated models after accepting 
-    their license.
+  description: Optional read token for private or gated models after accepting their license.
   secret: true
   var: HF_TOKEN
 
